@@ -1,5 +1,6 @@
+
+import subprocess
 import webbrowser
-from urllib.parse import quote_plus
 
 from core.plugin import Plugin
 
@@ -9,24 +10,61 @@ class YouTubePlugin(Plugin):
     def register_tools(self, mcp):
 
         @mcp.tool()
-        def buka_youtube(query: str = "") -> str:
+        def search_youtube(query: str) -> str:
             """
-            Membuka YouTube dan mencari video berdasarkan permintaan pengguna.
-            AI harus menentukan query pencarian berdasarkan konteks percakapan.
-            Jika query kosong, buka halaman utama YouTube.
+            Mencari video YouTube berdasarkan kata kunci.
+            Mengembalikan judul dan ID video.
             """
 
-            if query:
-                url = (
-                    "https://www.youtube.com/results?search_query="
-                    + quote_plus(query)
+            try:
+                result = subprocess.run(
+                    [
+                        "yt-dlp",
+                        "--flat-playlist",
+                        "--dump-json",
+                        "--playlist-end", "5",
+                        f"ytsearch5:{query}"
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
                 )
-            else:
-                url = "https://www.youtube.com"
 
-            success = webbrowser.open(url)
+                if result.returncode != 0:
+                    return f"Gagal mencari video: {result.stderr}"
 
-            if success:
-                return f"YouTube berhasil dibuka. Pencarian: {query or 'Halaman utama'}"
+                import json
+
+                videos = []
+
+                for line in result.stdout.splitlines():
+                    data = json.loads(line)
+
+                    videos.append(
+                        f"Judul: {data.get('title')}\n"
+                        f"ID: {data.get('id')}\n"
+                    )
+
+                if not videos:
+                    return "Video tidak ditemukan."
+
+                return "\n".join(
+                    f"{i + 1}. {video}"
+                    for i, video in enumerate(videos)
+                )
+
+            except Exception as e:
+                return f"Error: {e}"
+
+        @mcp.tool()
+        def play_youtube(video_id: str) -> str:
+            """
+            Membuka dan memutar video YouTube berdasarkan ID.
+            """
+
+            url = f"https://www.youtube.com/watch?v={video_id}"
+
+            if webbrowser.open(url):
+                return f"Video berhasil dibuka: {url}"
 
             return "Gagal membuka browser."
